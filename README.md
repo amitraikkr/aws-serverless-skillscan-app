@@ -27,7 +27,7 @@ Before you deploy the application, ensure you have the following:
 
 <h2>Installation</h2>
 
-git clone https://github.com/your-repo/resume-analysis-service.git
+git clone https://github.com/amitraikkr/aws-serverless-skillscan-app.git
 cd resume-analysis-service
 
 Build the SAM application:
@@ -42,7 +42,7 @@ Follow the prompts in the deploy process to set up the stack, create the AWS API
 
 <h2>Usage</h2>
 
-<h3>To use the application:<h3>
+<h3>To use the application:</h3>
 
 <p>
 Upload the resume_userid.pdf to the designated S3 bucket.
@@ -58,4 +58,6 @@ The Lambda function will interact with the OpenAI GPT-4 model to analyze the res
 
 <h3>Throttling</h3>
 Users are limited to 5 interactions with the OpenAI GPT-4 model within a 24-hour period. This is tracked using DynamoDB.
+<br>
+<i>A custom user interface can be created by end user to utilize the this service/application</i>
 
