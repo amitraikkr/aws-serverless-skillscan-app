@@ -1,0 +1,155 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  skillscan-app-backend
+
+  Sample SAM Template for skillscan-app-backend
+
+Globals:
+  Function:
+    Timeout: 120
+    MemorySize: 128
+
+Resources:
+  ResumeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub skillscan-resume-bucket-${AWS::AccountId}-${AWS::Region}
+      VersioningConfiguration:
+        Status: Enabled
+      AccessControl: Private
+
+  skillscanAppBackEndFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: LambdaS3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt ResumeBucket.Arn
+                  - !Sub ${ResumeBucket.Arn}/*
+        - PolicyName: SecretsManagerReadAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: # add your secret manager
+        - PolicyName: DynamoDBCrudAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource: !GetAtt skillscanContextTable.Arn
+        - PolicyName: LambdaExecution
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: 'arn:aws:logs:*:*:*'
+
+  skillscanAppBackEndFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: skillscanApp_BackEnd
+      CodeUri: skillscan-app-backend/
+      Handler: app.lambda_handler
+      Role: !GetAtt skillscanAppBackEndFunctionRole.Arn
+      Runtime: python3.11
+      Architectures:
+        - x86_64
+      Layers:
+        - !Ref skillscanAppLibLayer
+      Environment:
+        Variables:
+          S3_BUCKET: !Ref ResumeBucket
+          SKILLSCAN_TAB_NAME: !Ref skillscanContextTable
+          REGION_NAME: !Sub ${AWS::Region}
+          
+  SecretsManagerReadPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Allows lambda function to read secrets from Secrets Manager
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource: # add your secret manager arn
+
+  DynamoDBCrudPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Allows lambda function to perform CRUD operations on DynamoDB
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - dynamodb:PutItem
+              - dynamodb:GetItem
+              - dynamodb:UpdateItem
+              - dynamodb:DeleteItem
+              - dynamodb:Query
+              - dynamodb:Scan
+            Resource: !GetAtt skillscanContextTable.Arn            
+
+  skillscanAppLibLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties: 
+      LayerName: "skillscan-lib-layer"
+      Description: "Layer for chatbot libraries"
+      ContentUri: lib_layer/python/site-packages/
+      CompatibleRuntimes: 
+        - python3.11
+      RetentionPolicy: Retain
+
+  skillscanContextTable:
+    Type: "AWS::DynamoDB::Table"
+    Properties:
+      TableName: !Sub skillscan-cntxt-table-${AWS::Region}
+      AttributeDefinitions:
+        - AttributeName: "user_id"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "user_id"
+          KeyType: "HASH"
+      BillingMode: PAY_PER_REQUEST  # Set to On-Demand capacity.
+    
+
+Outputs:
+  skillscanAppBackEndFunction:
+    Description: "skillscan App Backend Lambda Function ARN"
+    Value: !GetAtt skillscanAppBackEndFunction.Arn
+  skillscanAppBackEndFunctionIamRole:
+    Description: "IAM Role for skillscan App Backend function"
+    Value: !GetAtt skillscanAppBackEndFunctionRole.Arn
+  ResumeBucketName:
+    Description: "S3 Bucket for resume uploads"
+    Value: !Ref ResumeBucket
